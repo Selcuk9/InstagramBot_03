@@ -5,14 +5,20 @@ using InstagramApiSharp.Classes;
 using InstagramApiSharp.Classes.Models;
 using InstagramApiSharp.Classes.SessionHandlers;
 using InstagramApiSharp.Logger;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Schema;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Script.Serialization;
 using System.Windows.Forms;
+
 namespace InstagramBot_03
 {
     public partial class Form1 : Form
@@ -30,6 +36,8 @@ namespace InstagramBot_03
             bool isEmail = false;
             RichTextBox t;
             IResult<InstaDirectInboxContainer> inboxThreads;
+
+
             public User(RichTextBox t)
             {
                 this.t = t;
@@ -37,6 +45,11 @@ namespace InstagramBot_03
 
             public void InitializeUserSessionData(String username, String password)
             {
+                if(String.IsNullOrEmpty(username) || String.IsNullOrEmpty(password))
+                {
+                    username = "buritimka1";
+                    password = "Justfuture";
+                }
                 userSession = new UserSessionData
                 {
                     UserName = username,
@@ -63,7 +76,7 @@ namespace InstagramBot_03
             public async void LoginUser()
             {
                 Log("***Login***User***");
-                if (!instaApi.IsUserAuthenticated)
+                if (/*!instaApi.IsUserAuthenticated*/true )
                 {
                     Log("User is not Authentificated");
                     var logInResult = await instaApi.LoginAsync();
@@ -206,55 +219,52 @@ namespace InstagramBot_03
 
             }
 
-           public async void GetInboxAndSendMessage()
+           public async void SendMessageViaUsername(String str)
             {
                 Log("***Inbox***&***Send***");
-                /* var recipientsResult = await instaApi.MessagingProcessor.GetRankedRecipientsAsync();
-                 if (!recipientsResult.Succeeded)
-                 {
-                     Log("Unable to get recipients");
-                     return;
-                 }
-                 foreach (var thread in recipientsResult.Value.Threads)
-                     Log($"Threadname: {thread.ThreadTitle}, users: {thread.Users.Count}");
-                 inboxThreads = await instaApi.MessagingProcessor.GetDirectInboxAsync(InstagramApiSharp.PaginationParameters.MaxPagesToLoad(1));
-                 Thread.Sleep(5000);
-                 if (!inboxThreads.Succeeded)
-                 {
-                     Log("Unable to get inbox");
-                     return;
-                 }
-                 //Log($"Got {inboxThreads.Value.Inbox.Threads.Count} inbox threads");
-                 foreach (var thread in inboxThreads.Value.Inbox.Threads)
-                     Log($"Threadname: {thread.Title}, users: {thread.Users.Count}");
-                 var firstThread = inboxThreads.Value.Inbox.Threads.FirstOrDefault();
-                 // send message to specific thread
-                 var sendMessageResult = await instaApi.MessagingProcessor.SendDirectTextAsync($"{firstThread.Users.FirstOrDefault()?.Pk}",
-                     firstThread.ThreadId, "test");
-                 Log(sendMessageResult.Succeeded ? "Message sent" : "Unable to send message");
-
-                 // just send message to user (thread not specified)
-                 sendMessageResult = await instaApi.MessagingProcessor.SendDirectTextAsync($"{firstThread.Users.FirstOrDefault()?.Pk}", string.Empty, "one more test");
-                 Log(sendMessageResult.Succeeded ? "Message sent" : "Unable to send message");*/
-                var desireUsername = "timofey_burkush";
+             
+                var desireUsername = "smileresearcher";
                 var user = await instaApi.UserProcessor.GetUserAsync(desireUsername);
                 var userId = user.Value.Pk.ToString();
                 var directText = await instaApi.MessagingProcessor
-                    .SendDirectTextAsync(userId, null, "Hello Ramtin,\r\nHow are you today?");
+                    .SendDirectTextAsync(userId, null, str);
             }
 
-            public async void GetDirectRequest()
+            public async void GetAllRequests()
             {
-                var pendingDirect = await instaApi.MessagingProcessor.GetPendingDirectAsync(PaginationParameters.MaxPagesToLoad(1));
-                Log(pendingDirect)
+                // inboxThreads = await instaApi.MessagingProcessor.GetDirectInboxAsync(InstagramApiSharp.PaginationParameters.MaxPagesToLoad(1));
+                GetLastMessages();
+            }
+
+            public async void GetLastMessages()
+            {
+                Log("***GET***LAST***MESSAGES***");
+                inboxThreads = await instaApi.MessagingProcessor.GetDirectInboxAsync(InstagramApiSharp.PaginationParameters.MaxPagesToLoad(1));                               
+                var threads = inboxThreads.Value.Inbox.Threads;
+                var countThreads = Math.Min(threads.Count, Constants.COUNT_THREADS_TO_CHECK);              
+                List<ThreadInbox> Dialogs = new List<ThreadInbox>();
+                for (int i = 0; i < countThreads; i++){
+                    var threadInbox = await instaApi.MessagingProcessor.GetDirectInboxThreadAsync(threads[i].ThreadId, InstagramApiSharp.PaginationParameters.MaxPagesToLoad(1));
+                    var threadId = threads[i].ThreadId;
+                    var mes = threadInbox.Value.Items;
+                    ThreadInbox thInbox = new ThreadInbox(threadId);
+                    thInbox.UserName = threads[i].Inviter.UserName;
+                    thInbox.AddMessages(mes);
+                    Dialogs.Add(thInbox);
+                }
+                foreach(var dialog in Dialogs)
+                {
+                    Log("***" + dialog.UserName + "***");
+                    foreach(var mes in dialog.messages)
+                    {
+                        Log("\t" + mes.user_id+" : "+mes.text);
+                    }
+                }                
             }
 
 
 
-
-
-
-
+            
 
 
 
@@ -299,7 +309,8 @@ namespace InstagramBot_03
 
            public void Log(String s)
             {
-                t.AppendText(s+'\n');
+               // t.AppendText(s+'\n');
+                t.Text = t.Text + s + '\n';
             }
 
         }

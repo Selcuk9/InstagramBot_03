@@ -47,7 +47,7 @@ namespace InstagramBot_03
 
         private void Button2_Click(object sender, EventArgs e)
         {
-            user.GetInboxAndSendMessage();
+            user.GetAllRequests();
         }
     }
 }
